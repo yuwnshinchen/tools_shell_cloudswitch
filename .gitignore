@@ -1,0 +1,19 @@
+# OS & IDE
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/
+
+# Environment & Config
+.env
+.env.*
+!.env.example
+
+# Credentials & Keys
+*.pem
+*.key
+*.crt
+*credentials*.json
+*service-account*.json
+kubeconfig*

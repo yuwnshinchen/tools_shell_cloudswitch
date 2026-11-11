@@ -1,0 +1,64 @@
+#!/bin/bash
+# autil - AWS Utility CLI
+
+# 判斷當前 Shell (支援 bash 與 zsh source 模式)
+if [ -n "${ZSH_VERSION:-}" ]; then
+    CURRENT_SCRIPT="${(%):-%x}"
+    IS_SOURCED=false
+    [[ "$ZSH_EVAL_CONTEXT" == *:file* ]] && IS_SOURCED=true
+else
+    CURRENT_SCRIPT="${BASH_SOURCE[0]}"
+    IS_SOURCED=false
+    [[ "${BASH_SOURCE[0]}" != "${0}" ]] && IS_SOURCED=true
+fi
+
+# 設定專案根目錄環境變數 (供所有子腳本共用)
+export CLOUDSWITCH_ROOT=$(cd "$(dirname "$CURRENT_SCRIPT")/../../" && pwd)
+
+# 1. 載入必要組件
+source "$CLOUDSWITCH_ROOT/common/utils.sh"
+source "$CLOUDSWITCH_ROOT/common/menu.sh"
+
+# 2. 收集選單
+collect_menu \
+  "$CLOUDSWITCH_ROOT/aws/bin/cmds" \
+  "$CLOUDSWITCH_ROOT/k8s/bin/cmds" \
+  "$CLOUDSWITCH_ROOT/common/bin/cmds"
+
+[[ ${#MENU_ITEMS[@]} -eq 0 ]] && { warn "未找到任何指令"; return 0 2>/dev/null || exit 0; }
+
+echo ""
+echo "🔧 AWS Utility CLI"
+echo "========================================="
+
+# 4. 顯示選單 (修正函式名稱為 select_menu)
+idx=$(select_menu) || { warn "已取消"; return 0 2>/dev/null || exit 0; }
+
+cmd_name=$(echo "${MENU_ITEMS[$idx]}" | cut -d'|' -f1)
+cmd_path="${MENU_PATHS[$idx]}"
+
+[[ ! -f "$cmd_path" ]] && { error "找不到指令檔案：$cmd_path"; return 1 2>/dev/null || exit 1; }
+
+echo ""
+info "執行功能：${cmd_name}"
+echo "-----------------------------------------"
+
+# 5. 判斷執行模式 (NORMAL / EXPORT)
+mode=$(grep -m1 '^# MODE:' "$cmd_path" | cut -d':' -f2 | xargs)
+mode=${mode:-NORMAL}
+
+if [[ "$mode" == "EXPORT" ]]; then
+    if [[ "$IS_SOURCED" == true ]]; then
+        # 如果是 EXPORT 且有 source，執行並 eval 結果
+        result=$(bash "$cmd_path")
+        eval "$result"
+        success "環境變數已套用"
+    else
+        # 如果是 EXPORT 但沒 source，提示用戶
+        error "此指令需要使用: source autil"
+        return 1 2>/dev/null || exit 1
+    fi
+else
+    # 一般模式直接執行
+    bash "$cmd_path"
+fi

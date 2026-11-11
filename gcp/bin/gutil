@@ -1,0 +1,33 @@
+#!/bin/bash
+# gutil - GCP Utility CLI
+
+# 判斷當前 Shell (支援 bash 與 zsh source 模式)
+if [ -n "${ZSH_VERSION:-}" ]; then
+    CURRENT_SCRIPT="${(%):-%x}"
+else
+    CURRENT_SCRIPT="${BASH_SOURCE[0]}"
+fi
+
+# 設定專案根目錄環境變數 (供所有子腳本共用)
+export CLOUDSWITCH_ROOT=$(cd "$(dirname "$CURRENT_SCRIPT")/../../" && pwd)
+
+source "$CLOUDSWITCH_ROOT/common/utils.sh"
+source "$CLOUDSWITCH_ROOT/common/menu.sh"
+
+collect_menu \
+  "$CLOUDSWITCH_ROOT/gcp/bin/cmds" \
+  "$CLOUDSWITCH_ROOT/k8s/bin/cmds" \
+  "$CLOUDSWITCH_ROOT/common/bin/cmds"
+
+[[ ${#MENU_ITEMS[@]} -eq 0 ]] && { warn "未找到任何指令"; return 0 2>/dev/null || exit 0; }
+
+echo ""
+echo "🔧 GCP Utility CLI"
+echo "========================================="
+
+idx=$(select_menu) || { warn "已取消"; return 0 2>/dev/null || exit 0; }
+
+cmd_name=$(echo "${MENU_ITEMS[$idx]}" | cut -d'|' -f1)
+cmd_path="${MENU_PATHS[$idx]}"
+
+bash "$cmd_path"
